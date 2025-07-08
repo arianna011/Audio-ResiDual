@@ -2,9 +2,11 @@ import IPython.display as ipd
 import math, random
 import torch
 import torchaudio
+import librosa
 from torchaudio import transforms
 import matplotlib.pyplot as plt
 import numpy as np
+from download_utils import *
 
 class AudioProcessing():
 
@@ -83,7 +85,7 @@ class AudioProcessing():
         return sig, sr
 
     @staticmethod
-    def time_shift(audio, shift_lim):
+    def time_shift(audio, shift_lim=0.4):
         """
         Perform data augmentation on raw sound signal by shifting it to the left or right
         by a random amount within a limit percentage
@@ -112,7 +114,7 @@ class AudioProcessing():
             a log mel spectogram as a tensor of shape (channels, n_mels, time)
         """
         sig, sr = audio
-        mel_spec = transforms.MelSpectrogram(sr, n_fft=n_fft, n_mels=n_mels, hop_length=hop_len) (sig)
+        mel_spec = transforms.MelSpectrogram(sample_rate=sr, n_fft=n_fft, n_mels=n_mels, hop_length=hop_len) (sig)
         log_mel_spec = transforms.AmplitudeToDB(top_db=top_db) (mel_spec)
 
         return log_mel_spec
@@ -184,3 +186,7 @@ class AudioProcessing():
             aug_spec = transforms.TimeMasking(max_time_mask) (aug_spec, mask_value) 
 
         return aug_spec    
+
+
+if __name__ == '__main__':
+    AudioProcessing.load(ESC_50_AUDIO_DIR + "1-100032-A-0.wav")
