@@ -70,7 +70,7 @@ def get_dataframe(dataset_name, cwd="./"):
     if dataset_name == 'ESC_50':
 
         if not os.path.exists(os.path.join(cwd, ESC_50_OUT)):
-            download_dataset(os.path.join(cwd, ESC_50_URL), os.path.join(cwd, ESC_50_OUT))
+            download_dataset(ESC_50_URL, os.path.join(cwd, ESC_50_OUT))
         df = pd.read_csv(os.path.join(cwd, ESC_50_META_FILE))
         return df[['filename', 'target']]
     
