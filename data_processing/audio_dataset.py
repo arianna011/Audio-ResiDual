@@ -1,5 +1,5 @@
 from torch.utils.data import DataLoader, Dataset, random_split
-from data_processing import AudioProcessing
+from processing import AudioProcessing
 from download_utils import *
 
 class AudioDataset(Dataset):
