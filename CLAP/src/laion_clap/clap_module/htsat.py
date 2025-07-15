@@ -774,13 +774,18 @@ class HTSAT_Swin_Transformer(nn.Module):
     def forward_features(self, x, longer_idx = None):
         # A deprecated optimization for using a hierarchical output from different blocks
 
+        attns = []
+
         frames_num = x.shape[2]        
         x = self.patch_embed(x, longer_idx = longer_idx)
         if self.ape:
             x = x + self.absolute_pos_embed
         x = self.pos_drop(x)
+
         for i, layer in enumerate(self.layers):
             x, attn = layer(x)
+            attns.append(attn)
+
         # for x
         x = self.norm(x)
         B, N, C = x.shape
@@ -809,11 +814,14 @@ class HTSAT_Swin_Transformer(nn.Module):
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
 
+        attn_tensor = torch.stack(attns, dim=0) # num_layers x layer attention shape
+
         output_dict = {
             'framewise_output': fpx, # already sigmoided
             'clipwise_output': torch.sigmoid(x),
             'fine_grained_embedding': fine_grained_latent_output,
-            'embedding': latent_output
+            'embedding': latent_output,
+            'layers_attention': attn_tensor
         }
 
         return output_dict
