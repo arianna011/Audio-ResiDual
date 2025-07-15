@@ -58,19 +58,20 @@ def download_dataset(url, dest_path):
     return extract_dir
 
 
-def get_dataframe(dataset_name):
+def get_dataframe(dataset_name, cwd="./"):
     """
     Get a pandas dataframe containing two columns:
      - filename of the audio waveform
      - label of the corresponding class
     for the specified dataset name
+    considering the given path to the execution folder
     """
 
     if dataset_name == 'ESC_50':
 
-        if not os.path.exists(ESC_50_OUT):
-            download_dataset(ESC_50_URL, ESC_50_OUT)
-        df = pd.read_csv(ESC_50_META_FILE)
+        if not os.path.exists(os.path.join(cwd, ESC_50_OUT)):
+            download_dataset(os.path.join(cwd, ESC_50_URL), os.path.join(cwd, ESC_50_OUT))
+        df = pd.read_csv(os.path.join(cwd, ESC_50_META_FILE))
         return df[['filename', 'target']]
     
     return None
