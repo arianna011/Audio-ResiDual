@@ -989,8 +989,8 @@ class HTSAT_Swin_Transformer(nn.Module):
 def create_htsat_model(audio_cfg, enable_fusion=False, fusion_type='None'):
     try:
 
-        assert audio_cfg["model_name"] in ["tiny", "base", "large"], "model name for HTS-AT is wrong!"
-        if audio_cfg["model_name"] == "tiny":
+        assert audio_cfg.model_name in ["tiny", "base", "large"], "model name for HTS-AT is wrong!"
+        if audio_cfg.model_name == "tiny":
             model = HTSAT_Swin_Transformer(
                 spec_size=256,
                 patch_size=4,
@@ -1004,7 +1004,7 @@ def create_htsat_model(audio_cfg, enable_fusion=False, fusion_type='None'):
                 enable_fusion = enable_fusion,
                 fusion_type = fusion_type
             )
-        elif audio_cfg["model_name"] == "base":
+        elif audio_cfg.model_name == "base":
             model = HTSAT_Swin_Transformer(
                 spec_size=256,
                 patch_size=4,
@@ -1018,7 +1018,7 @@ def create_htsat_model(audio_cfg, enable_fusion=False, fusion_type='None'):
                 enable_fusion = enable_fusion,
                 fusion_type = fusion_type
             )
-        elif audio_cfg["model_name"] == "large":
+        elif audio_cfg.model_name == "large":
             model = HTSAT_Swin_Transformer(
                 spec_size=256,
                 patch_size=4,
@@ -1035,5 +1035,5 @@ def create_htsat_model(audio_cfg, enable_fusion=False, fusion_type='None'):
         
         return model
     except:
-        raise RuntimeError(f'Import Model for {audio_cfg["model_name"]} not found, or the audio cfg parameters are not enough.')
+        raise RuntimeError(f'Import Model for {audio_cfg.model_name} not found, or the audio cfg parameters are not enough.')
         
