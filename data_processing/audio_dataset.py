@@ -27,9 +27,13 @@ class AudioDataset(Dataset):
     
     def __getitem__(self, index):
         """
-        Return audio mel spectogram and corresponding class label
+        Return audio waveform and corresponding class label
         """
         audio = AudioProcessing.load(self.data_path + self.df.loc[index, 'filename'])
+        label = self.df.loc[index, 'target']
+        return audio, label
+    
+    def process_item(self, audio):
         if self.sr: 
             audio = AudioProcessing.to_sample_rate(audio, self.sr)
         if self.n_chan: 
@@ -42,9 +46,7 @@ class AudioDataset(Dataset):
         spec = AudioProcessing.to_log_mel_spectogram(audio)
         if self.augment:
             spec = AudioProcessing.time_freq_mask(spec)
-
-        label = self.df.loc[index, 'target']
-        return spec, label
+        return spec
 
 
 if __name__ == '__main__':
