@@ -814,14 +814,13 @@ class HTSAT_Swin_Transformer(nn.Module):
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
 
-        attn_tensor = torch.stack(attns, dim=0) # num_layers x layer attention shape
 
         output_dict = {
             'framewise_output': fpx, # already sigmoided
             'clipwise_output': torch.sigmoid(x),
             'fine_grained_embedding': fine_grained_latent_output,
             'embedding': latent_output,
-            'layers_attention': attn_tensor
+            'layers_attention': attns
         }
 
         return output_dict
