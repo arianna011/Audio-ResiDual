@@ -740,6 +740,26 @@ class CLAP(nn.Module):
         audio_embeds = self.audio_projection(audio_embeds)
         audio_embeds = F.normalize(audio_embeds, dim=-1)
         return audio_embeds
+    
+
+    def get_audio_output_dict(self, data):
+        """Get the entire output dict produced by the audio branch of the model
+
+        Parameters
+        ----------
+        data: a list of dict
+            the audio input dict list from 'get_audio_feature' method
+
+        Returns
+        ----------
+        output_dict: dict
+        """
+        device = next(self.parameters()).device
+        input_dict = {}
+        keys = data[0].keys()
+        for k in keys:
+            input_dict[k] = torch.cat([d[k].unsqueeze(0) for d in data], dim=0).to(device)
+        return self.encode_audio(input_dict, device=device)
 
             
 
