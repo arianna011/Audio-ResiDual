@@ -29,7 +29,7 @@ class AudioDataset(Dataset):
         """
         Return audio waveform and corresponding class label
         """
-        audio = AudioProcessing.load(self.data_path + self.df.loc[index, 'filename'])
+        audio, _ = AudioProcessing.load(self.data_path + self.df.loc[index, 'filename'])
         label = self.df.loc[index, 'target']
         return audio, label
     
