@@ -108,8 +108,19 @@ def get_dataframe(dataset_name, cwd="./"):
     df = pd.read_csv(os.path.join(cwd, dataset["csv_path"]))
 
     return process_dataframe(df, dataset_name)
-   
-        
+
+
+def get_dataframe_from_path(dataset_name, dataset_path, cwd="./"):
+    # assumes dataset already downloaded at path
+    
+    assert dataset_name in DATASETS.keys(), f"Dataset not recognized: {dataset_name}"
+
+    dataset = DATASETS[dataset_name]
+    df = pd.read_csv(os.path.join(cwd, dataset["csv_path"]))
+
+    return process_dataframe(df, dataset_name)
+
+
 def process_dataframe(df, dataset_name):
 
     cols = DATASETS[dataset_name]["columns"]
