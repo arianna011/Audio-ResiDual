@@ -50,7 +50,7 @@ class AudioDataset(Dataset):
 
 
 if __name__ == '__main__':
-    dataset = AudioDataset(get_dataframe('ESC_50'), ESC_50_AUDIO_DIR)
+    dataset = AudioDataset(get_dataframe('UrbanSound8K'), URBAN_SOUND_AUDIO_DIR)
     dl = DataLoader(dataset, batch_size=16, shuffle=False)
     for batch in dl:
         print(len(batch))

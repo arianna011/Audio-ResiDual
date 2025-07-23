@@ -10,8 +10,35 @@ ESC_50_URL = 'https://github.com/karoldvl/ESC-50/archive/master.zip'
 ESC_50_OUT = 'data/esc50.zip'
 ESC_50_AUDIO_DIR = 'data/esc50/ESC-50-master/audio/'
 ESC_50_META_FILE = 'data/esc50/ESC-50-master/meta/esc50.csv'
+ESC_50_COLUMNS = {"file_column": "filename", "label_column": "target"}
+ESC_50_CLASS_LABELS = [
+    'dog', 'rooster', 'pig', 'cow', 'frog', 'cat', 'hen', 'insects',
+    'sheep', 'crow', 'rain', 'sea_waves', 'crackling_fire', 'crickets',
+    'chirping_birds', 'water_drops', 'wind', 'pouring_water', 'toilet_flush',
+    'thunderstorm', 'crying_baby', 'sneezing', 'clapping', 'breathing',
+    'coughing', 'footsteps', 'laughing', 'brushing_teeth', 'snoring',
+    'drinking_sipping', 'door_wood_knock', 'mouse_click', 'keyboard_typing',
+    'door_wood_creaks', 'can_opening', 'washing_machine', 'vacuum_cleaner',
+    'clock_alarm', 'clock_tick', 'glass_breaking', 'helicopter', 'chainsaw',
+    'siren', 'car_horn', 'engine', 'train', 'church_bells', 'airplane',
+    'fireworks', 'hand_saw'
+]
 
-DATASETS = {'ESC50': {'url': ESC_50_URL, 'audio_dir': ESC_50_AUDIO_DIR, 'csv_path': ESC_50_META_FILE, 'out_dir': ESC_50_OUT}}
+# UrbanSound8K
+URBAN_SOUND_URL = 'https://zenodo.org/record/1203745/files/UrbanSound8K.tar.gz'
+URBAN_SOUND_OUT = 'data/urbansound.tar.gz'
+URBAN_SOUND_AUDIO_DIR = 'data/urbansound/UrbanSound8K/audio/' # + folds
+URBAN_SOUND_META_FILE = 'data/urbansound/UrbanSound8K/metadata/UrbanSound8K.csv'
+URBAN_SOUND_COLUMNS = {"file_column": "slice_file_name", "label_column": "classID", "fold_column":"fold"}
+URBAN_SOUND_CLASS_LABELS = [
+    "air_conditioner", "car_horn", "children_playing", "dog_bark", "drilling",
+    "engine_idling", "gun_shot", "jackhammer", "siren", "street_music"
+]
+
+DATASETS = {  
+    'ESC50': {'url': ESC_50_URL, 'audio_dir': ESC_50_AUDIO_DIR, 'csv_path': ESC_50_META_FILE, 'out_dir': ESC_50_OUT, 'class_labels':ESC_50_CLASS_LABELS, 'columns': ESC_50_COLUMNS}, 
+            
+    'UrbanSound8K': {'url': URBAN_SOUND_URL, 'audio_dir': URBAN_SOUND_AUDIO_DIR, 'csv_path': URBAN_SOUND_META_FILE, 'out_dir': URBAN_SOUND_OUT,'class_labels': URBAN_SOUND_CLASS_LABELS, 'columns': URBAN_SOUND_COLUMNS}}
 
 
 def download_dataset(url, dest_path):
@@ -70,7 +97,7 @@ def get_dataframe(dataset_name, cwd="./"):
     considering the given path to the execution folder
     """
 
-    assert dataset_name in DATASETS.keys(), "Dataset not recognized: " + dataset_name
+    assert dataset_name in DATASETS.keys(), f"Dataset not recognized: {dataset_name}"
 
     dataset = DATASETS[dataset_name]
     out_path = os.path.join(cwd, dataset["out_dir"])
@@ -79,9 +106,22 @@ def get_dataframe(dataset_name, cwd="./"):
             download_dataset(dataset["url"], out_path)
     
     df = pd.read_csv(os.path.join(cwd, dataset["csv_path"]))
-    return df[['filename', 'target']]
+
+    return process_dataframe(df, dataset_name)
+   
         
+def process_dataframe(df, dataset_name):
+
+    cols = DATASETS[dataset_name]["columns"]
+    if dataset_name == "UrbanSound8K":
+       df[cols["file_column"]] = df.apply(lambda row: os.path.join(f"fold{row.fold}", row.slice_file_name), axis=1 )
+
+    # Standardize output
+    df = df.rename(columns={cols["file_column"]: "filename", cols["label_column"]: "target"})
+    if "fold_colummn" in cols.keys():
+        df = df.rename(columns={cols["fold_column"]: "fold"})
+        return df[["filename", "target", "fold"]]
+    return df[["filename", "target"]]
 
 if __name__ == '__main__':
-    df = get_dataframe("ESC50")
-    print(df.head())
+    download_dataset(URBAN_SOUND_URL, URBAN_SOUND_OUT)
