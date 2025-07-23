@@ -73,7 +73,8 @@ def get_dataframe(dataset_name, cwd="./"):
             download_dataset(ESC_50_URL, os.path.join(cwd, ESC_50_OUT))
         df = pd.read_csv(os.path.join(cwd, ESC_50_META_FILE))
         return df[['filename', 'target']]
-    
+    else:
+        print("Dataset not recognized: " + dataset_name)
     return None
         
 
