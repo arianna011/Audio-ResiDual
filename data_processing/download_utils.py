@@ -70,7 +70,7 @@ def get_dataframe(dataset_name, cwd="./"):
     considering the given path to the execution folder
     """
 
-    assert dataset_name in DATASETS.keys, "Dataset not recognized: " + dataset_name
+    assert dataset_name in DATASETS.keys(), "Dataset not recognized: " + dataset_name
 
     dataset = DATASETS[dataset_name]
     out_path = os.path.join(cwd, dataset["out_dir"])
