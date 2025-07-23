@@ -88,7 +88,7 @@ def download_dataset(url, dest_path):
     return extract_dir
 
 
-def get_dataframe(dataset_name, cwd="./"):
+def get_dataframe(dataset_name, cwd="./", downloaded=False):
     """
     Get a pandas dataframe containing two columns:
      - filename of the audio waveform
@@ -102,20 +102,9 @@ def get_dataframe(dataset_name, cwd="./"):
     dataset = DATASETS[dataset_name]
     out_path = os.path.join(cwd, dataset["out_dir"])
    
-    if not os.path.exists(out_path):
+    if not downloaded and not os.path.exists(out_path):
             download_dataset(dataset["url"], out_path)
     
-    df = pd.read_csv(os.path.join(cwd, dataset["csv_path"]))
-
-    return process_dataframe(df, dataset_name)
-
-
-def get_dataframe_from_path(dataset_name, dataset_path, cwd="./"):
-    # assumes dataset already downloaded at path
-    
-    assert dataset_name in DATASETS.keys(), f"Dataset not recognized: {dataset_name}"
-
-    dataset = DATASETS[dataset_name]
     df = pd.read_csv(os.path.join(cwd, dataset["csv_path"]))
 
     return process_dataframe(df, dataset_name)
