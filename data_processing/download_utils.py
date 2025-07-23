@@ -4,11 +4,14 @@ import zipfile
 import tarfile
 import pandas as pd
 
+
 # ESC-50 dataset
 ESC_50_URL = 'https://github.com/karoldvl/ESC-50/archive/master.zip'
 ESC_50_OUT = 'data/esc50.zip'
 ESC_50_AUDIO_DIR = 'data/esc50/ESC-50-master/audio/'
 ESC_50_META_FILE = 'data/esc50/ESC-50-master/meta/esc50.csv'
+
+DATASETS = {'ESC50': {'url': ESC_50_URL, 'audio_dir': ESC_50_AUDIO_DIR, 'csv_path': ESC_50_META_FILE, 'out_dir': ESC_50_OUT}}
 
 
 def download_dataset(url, dest_path):
@@ -67,17 +70,18 @@ def get_dataframe(dataset_name, cwd="./"):
     considering the given path to the execution folder
     """
 
-    if dataset_name == 'ESC_50':
+    assert dataset_name in DATASETS.keys, "Dataset not recognized: " + dataset_name
 
-        if not os.path.exists(os.path.join(cwd, ESC_50_OUT)):
-            download_dataset(ESC_50_URL, os.path.join(cwd, ESC_50_OUT))
-        df = pd.read_csv(os.path.join(cwd, ESC_50_META_FILE))
-        return df[['filename', 'target']]
-    else:
-        print("Dataset not recognized: " + dataset_name)
-    return None
+    dataset = DATASETS[dataset_name]
+    out_path = os.path.join(cwd, dataset["out_dir"])
+   
+    if not os.path.exists(out_path):
+            download_dataset(dataset["url"], out_path)
+    
+    df = pd.read_csv(os.path.join(cwd, dataset["csv_path"]))
+    return df[['filename', 'target']]
         
 
 if __name__ == '__main__':
-    df = get_dataframe("ESC_50")
+    df = get_dataframe("ESC50")
     print(df.head())
