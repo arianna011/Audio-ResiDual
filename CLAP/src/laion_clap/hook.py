@@ -118,7 +118,7 @@ class CLAP_Module(torch.nn.Module):
             for n in param_names:
                 logging.info(n, "\t", "Loaded" if n in ckpt else "Unloaded")
     
-    def get_audio_embedding_from_filelist(self, x, use_tensor=False):
+    def get_audio_embedding_from_filelist(self, x, use_tensor=False, data_fil="repeat_pad"):
         """get audio embeddings from the audio file list
 
         Parameters
@@ -144,7 +144,7 @@ class CLAP_Module(torch.nn.Module):
             temp_dict = get_audio_features(
                 temp_dict, audio_waveform, 480000, 
                 data_truncating='fusion' if self.enable_fusion else 'rand_trunc', 
-                data_filling='repeatpad',
+                data_filling=data_fil,
                 audio_cfg=self.model_cfg['audio_cfg'],
                 require_grad=audio_waveform.requires_grad
             )
@@ -155,7 +155,7 @@ class CLAP_Module(torch.nn.Module):
         return audio_embed
 
 
-    def get_audio_embedding_from_data(self, x, use_tensor=False):
+    def get_audio_embedding_from_data(self, x, use_tensor=False, data_fil="repeat_pad"):
         """get audio embeddings from the audio data
 
         Parameters
@@ -181,7 +181,7 @@ class CLAP_Module(torch.nn.Module):
             temp_dict = get_audio_features(
                 temp_dict, audio_waveform, 480000, 
                 data_truncating='fusion' if self.enable_fusion else 'rand_trunc', 
-                data_filling='repeatpad',
+                data_filling=data_fil,
                 audio_cfg=self.model_cfg['audio_cfg'],
                 require_grad=audio_waveform.requires_grad
             )
