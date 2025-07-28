@@ -8,7 +8,7 @@ import numpy as np
 import gc
 import pickle
 import os
-from ..CLAP import get_audio_features
+from CLAP import get_audio_features
 
 class ResiDual(nn.Module):
     """
