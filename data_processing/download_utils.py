@@ -10,7 +10,9 @@ ESC_50_URL = 'https://github.com/karoldvl/ESC-50/archive/master.zip'
 ESC_50_OUT = 'data/esc50.zip'
 ESC_50_AUDIO_DIR = 'data/esc50/ESC-50-master/audio/'
 ESC_50_META_FILE = 'data/esc50/ESC-50-master/meta/esc50.csv'
-ESC_50_COLUMNS = {"file_column": "filename", "label_column": "target"}
+ESC_50_COLUMNS = {"file_column": "filename", "label_column": "target", "fold_column":"fold"}
+ESC_50_AUDIO_FOLDS = 5
+ESC_50_AUDIO_LEN = 5 # 5 seconds long clips
 ESC_50_CLASS_LABELS = [
     'dog', 'rooster', 'pig', 'cow', 'frog', 'cat', 'hen', 'insects',
     'sheep', 'crow', 'rain', 'sea_waves', 'crackling_fire', 'crickets',
@@ -30,15 +32,18 @@ URBAN_SOUND_OUT = 'data/urbansound.tar.gz'
 URBAN_SOUND_AUDIO_DIR = 'data/urbansound/UrbanSound8K/audio/' # + folds
 URBAN_SOUND_META_FILE = 'data/urbansound/UrbanSound8K/metadata/UrbanSound8K.csv'
 URBAN_SOUND_COLUMNS = {"file_column": "slice_file_name", "label_column": "classID", "fold_column":"fold"}
+URBAN_SOUND_FOLDS = 10
+URBAN_SOUND_AUDIO_LEN = (1,4) # variable length from 1 to 4 seconds
 URBAN_SOUND_CLASS_LABELS = [
     "air_conditioner", "car_horn", "children_playing", "dog_bark", "drilling",
     "engine_idling", "gun_shot", "jackhammer", "siren", "street_music"
 ]
 
 DATASETS = {  
-    'ESC50': {'url': ESC_50_URL, 'audio_dir': ESC_50_AUDIO_DIR, 'csv_path': ESC_50_META_FILE, 'out_dir': ESC_50_OUT, 'class_labels':ESC_50_CLASS_LABELS, 'columns': ESC_50_COLUMNS}, 
+    'ESC50': {'url': ESC_50_URL, 'audio_dir': ESC_50_AUDIO_DIR, 'csv_path': ESC_50_META_FILE, 'out_dir': ESC_50_OUT, 'class_labels':ESC_50_CLASS_LABELS, 'columns': ESC_50_COLUMNS,
+              'n_folds': ESC_50_AUDIO_FOLDS, 'audio_len': ESC_50_AUDIO_LEN}, 
             
-    'UrbanSound8K': {'url': URBAN_SOUND_URL, 'audio_dir': URBAN_SOUND_AUDIO_DIR, 'csv_path': URBAN_SOUND_META_FILE, 'out_dir': URBAN_SOUND_OUT,'class_labels': URBAN_SOUND_CLASS_LABELS, 'columns': URBAN_SOUND_COLUMNS}}
+    'UrbanSound8K': {'url': URBAN_SOUND_URL, 'audio_dir': URBAN_SOUND_AUDIO_DIR, 'csv_path': URBAN_SOUND_META_FILE, 'out_dir': URBAN_SOUND_OUT,'class_labels': URBAN_SOUND_CLASS_LABELS, 'columns': URBAN_SOUND_COLUMNS, 'n_folds': URBAN_SOUND_FOLDS, 'audio_len': URBAN_SOUND_AUDIO_LEN}}
 
 
 def download_dataset(url, dest_path):
@@ -90,11 +95,12 @@ def download_dataset(url, dest_path):
 
 def get_dataframe(dataset_name, cwd="./", downloaded=False):
     """
-    Get a pandas dataframe containing two columns:
+    Get a pandas dataframe containing:
      - filename of the audio waveform
      - label of the corresponding class
+     - fold to which the file belongs
     for the specified dataset name
-    considering the given path to the execution folder
+    considering the given path to the current execution folder
     """
 
     assert dataset_name in DATASETS.keys(), f"Dataset not recognized: {dataset_name}"
@@ -118,7 +124,7 @@ def process_dataframe(df, dataset_name):
 
     # Standardize output
     df = df.rename(columns={cols["file_column"]: "filename", cols["label_column"]: "target"})
-    if "fold_colummn" in cols.keys():
+    if "fold_column" in cols.keys():
         df = df.rename(columns={cols["fold_column"]: "fold"})
         return df[["filename", "target", "fold"]]
     return df[["filename", "target"]]

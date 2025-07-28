@@ -1,13 +1,15 @@
 from torch.utils.data import DataLoader, Dataset, random_split
-from .processing import AudioProcessing
-from .download_utils import *
+from processing import AudioProcessing
+from download_utils import *
+from torch.utils.data import DataLoader
 
 class AudioDataset(Dataset):
 
-    def __init__(self, df, data_path, sr=None, duration=None, n_chan=None, augment=False):
+    def __init__(self, name, df, data_path, sr=None, duration=None, n_chan=None, augment=False):
         """
         Params:
-            df - dataframe containing audio filenames and corresponding class labels
+            name - name of the original dataset
+            df - dataframe containing audio filenames, folds and corresponding class labels
             data_path - path to the folder containing the audio files
             sr - sample rate of audio files
             duration - length of audio files 
@@ -15,6 +17,7 @@ class AudioDataset(Dataset):
             augment - whether to perform data augmentation (time shift on raw audio, masking on spectograms)
         """
         super().__init__()
+        self.name = name
         self.df = df
         self.data_path = data_path
         self.sr = sr
@@ -47,13 +50,39 @@ class AudioDataset(Dataset):
         if self.augment:
             spec = AudioProcessing.time_freq_mask(spec)
         return spec
+    
+
+
+def get_fold_dataloaders(audio_dataset, shuffle=False, batch_size=32, num_workers=0):
+    """
+    Return list of (train_loader, val_loader) using the predefined folds on the given dataset.
+    """
+    name = audio_dataset.name
+    df = audio_dataset.df
+    n_folds = DATASETS[name]['n_folds']
+    assert n_folds > 0, f'Dataset {name} is not arranged for k-fold validation'
+    fold_col = DATASETS[name]['columns']['fold_column']
+
+    folds = []
+
+    for i in range(n_folds):   
+        val_fold = i+1
+        train_df = df[df[fold_col] != val_fold].reset_index(drop=True)
+        val_df = df[df[fold_col] == val_fold].reset_index(drop=True)
+
+        train_dataset = AudioDataset(name, train_df, audio_dataset.data_path)
+        val_dataset = AudioDataset(name, val_df, audio_dataset.data_path)
+
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+
+        folds.append((train_loader, val_loader))
+
+    return folds    
 
 
 if __name__ == '__main__':
-    dataset = AudioDataset(get_dataframe('UrbanSound8K'), URBAN_SOUND_AUDIO_DIR)
+    dataset = AudioDataset('UrbanSound8K', get_dataframe('UrbanSound8K'), URBAN_SOUND_AUDIO_DIR)
     dl = DataLoader(dataset, batch_size=16, shuffle=False)
-    for batch in dl:
-        print(len(batch))
-        print((batch[0]).shape)
-        print((batch[1]).shape)
-        break
+    folds = get_fold_dataloaders(dataset)
+    print(len(folds))
