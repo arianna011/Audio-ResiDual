@@ -8,6 +8,7 @@ import numpy as np
 import gc
 import pickle
 import os
+from copy import deepcopy
 from CLAP import get_audio_features
 
 class ResiDual(nn.Module):
@@ -16,31 +17,25 @@ class ResiDual(nn.Module):
     regulated by a learnable parameter (as in the paper https://arxiv.org/pdf/2411.00246)
     """
 
-    def __init__(self, bases, means):
+    def __init__(self, pca_basis, pca_mean, n_components=None):
         super().__init__()
-        self.num_heads = len(bases)
-        self.head_dim = bases[0].shape[1]
-        self.bases = nn.ParameterList([nn.Parameter(b, requires_grad=False) for b in bases]) # principal component basis for each attention head
-        self.means = nn.ParameterList([nn.Parameter(m, requires_grad=False) for m in means]) # associated mean
-        self.learnables = nn.ParameterList([nn.Parameter(torch.ones(b.shape[0])) for b in bases])
+        D = pca_basis.shape[0]
+        self.n_components = n_components or D
+
+        self.register_buffer("mean", pca_mean)
+        self.register_buffer("basis", pca_basis[:self.n_components])
+        self.learnable = nn.Parameter(torch.ones(self.n_components))
 
     def forward(self, x):
         """
-        x: (B, H*W, C) with C = num_heads * head_dim
+        x: input residual unit vector
         """
-        assert self.bases[0].shape[1] * len(self.bases) == x.shape[-1]
+        x_centered = x - self.mean
+        x_proj = torch.matmul(x_centered, self.basis.T)
+        x_scaled = x_proj * self.learnable
+        x_out = torch.matmul(x_scaled, self.basis)
 
-        chunks = torch.chunk(x, self.num_heads, dim=-1)
-        outputs = []
-
-        for i, x_h in enumerate(chunks):
-            x_centered = x_h - self.means[i]
-            x_proj = torch.matmul(x_centered, self.bases[i].T)
-            x_scaled = x_proj * self.learnables[i]
-            x_out = torch.matmul(x_scaled, self.bases[i])
-            outputs.append(x_out)
-
-        return torch.cat(outputs, dim=-1)
+        return x_out
     
 
 def patch_block_with_residual(block, residual):
@@ -86,7 +81,7 @@ def patch_block_with_residual(block, residual):
 
         x = x.view(B, H * W, C)
         
-        x = residual(x) # apply ResiDual
+        x = residual(x) # apply ResiDual after attention and before MLP
 
         x = shortcut + drop_path(x)
         x = x + drop_path(orig_mlp(norm2(x)))
@@ -95,24 +90,25 @@ def patch_block_with_residual(block, residual):
 
     block.forward = types.MethodType(patched_forward, block)
 
-def compute_pca_components(model, dataloader, target_layer, num_heads, n_components=None, max_batches=None, save_path=None):
+
+
+
+
+
+def compute_pca_components(model, dataloader, target_layer, n_components=None, max_batches=None, save_path=None):
     """
-     Compute PCA basis and mean for Residual for each attention head in a specific Swin Transformer layer
+     Compute PCA basis and mean for Residual in a specific Swin Transformer layer
     """    
     model.eval()
+    pca_model = IncrementalPCA(n_components=n_components)
 
-    pca_models = defaultdict(dict)
-    for h in range(num_heads):
-        pca_models[h] = IncrementalPCA(n_components=n_components)
+    buffer = []
+    BATCH_THRESHOLD = 30
 
-    for i,batch in enumerate(tqdm(dataloader, desc=f"Applying PCA per attention head on layer {target_layer}")):
+    for i,batch in enumerate(tqdm(dataloader, desc=f"Applying PCA on layer {target_layer}")):
 
         if max_batches and i >= max_batches:
             break
-
-        batch_data = defaultdict(list)
-        buffers = defaultdict(list)
-        BATCH_THREHSOLD = 30
 
         x = batch[0] # batch_size x channels x time samples
         audio_data = quantize_tensor(x.squeeze(1)).cpu()
@@ -132,21 +128,14 @@ def compute_pca_components(model, dataloader, target_layer, num_heads, n_compone
             out_dict = model.model.get_audio_output_dict(audio_input)
             attn = out_dict["layers_attention"][target_layer]  # attn: list[batch_size * window_size**2][Tensor of (heads, window_size**2, window_size**2)]
 
-        attn_cpu = [head.cpu() for head in attn]
+        for window_attn in attn:     # one window: Tensor [heads, window_size**2, window_size**2]
+            all_heads = window_attn.cpu().numpy().reshape(-1)
+            buffer.append(all_heads)
 
-        for window_attn in attn_cpu:     # one window: Tensor [heads, window_size**2, window_size**2]
-            for h in range(num_heads):
-                head_attn = window_attn[h]  # Tensor  [window_size**2, window_size**2]
-                flat = head_attn.flatten().numpy()  # shape: [window_size**4]
-                batch_data[h].append(flat)
-
-        for h, samples in batch_data.items():
-            buffers[h].extend(samples)
-
-            if len(buffers[h]) >= BATCH_THREHSOLD:
-                X = np.stack(buffers[h])
-                pca_models[h].partial_fit(X) # apply PCA on buffered data
-                buffers[h] = []
+            if len(buffer) >= BATCH_THRESHOLD:
+                X = np.stack(buffer)
+                pca_model.partial_fit(X) # apply PCA on buffered data
+                buffer = []
 
         # Clear memory
         del out_dict, attn
@@ -154,12 +143,11 @@ def compute_pca_components(model, dataloader, target_layer, num_heads, n_compone
         gc.collect()
 
     pca_results = {}
-    for h in range(num_heads):
-        pca_results[h] = {
-            "components": pca_models[h].components_,
-            "mean": pca_models[h].mean_,
-            "explained_variance": pca_models[h].explained_variance_,
-            "explained_variance_ratio": pca_models[h].explained_variance_ratio_,
+    pca_results = {
+            "components": pca_model.components_,
+            "mean": pca_model.mean_,
+            "explained_variance": pca_model.explained_variance_,
+            "explained_variance_ratio": pca_model.explained_variance_ratio_,
         }
 
     if save_path:
@@ -172,23 +160,21 @@ def compute_pca_components(model, dataloader, target_layer, num_heads, n_compone
 
     
 def load_residual(pca_path):
+
     with open(pca_path, "rb") as f:
         pca_results = pickle.load(f)
 
-    bases = []
-    means = []
+    components = pca_results["components"]
+    mean = pca_results["mean"]
 
-    for h in sorted(pca_results.keys()):
-        components = pca_results[h]["components"]
-        mean = pca_results[h]["mean"]
-        bases.append(torch.tensor(components, dtype=torch.float32))
-        means.append(torch.tensor(mean, dtype=torch.float32))
+    basis = torch.tensor(components, dtype=torch.float32)
+    mean = torch.tensor(mean, dtype=torch.float32)
 
-    return ResiDual(bases, means)
+    return ResiDual(basis, mean)
 
-def setup_residual_htsat(model, residual, targets):
+def setup_residual_htsat(model, residual, layer, blocks):
     """
-    Inject ResiDual into the (layer, block) locations given in the input target list
+    Inject ResiDual into the block locations (in a single layer) given in the input target list
     """
 
     # freeze everything except ResiDual scaling parameters
@@ -197,11 +183,10 @@ def setup_residual_htsat(model, residual, targets):
     for p in residual.parameters():
         p.requires_grad = False
 
-    for param in residual.learnables:
-        param.requires_grad = True
+    residual.learnable.requires_grad = True
 
-    for (layer, block) in targets:
-        patch_block_with_residual(model.layers[layer].blocks[block], residual)
+    for b in blocks:
+        patch_block_with_residual(model.layers[layer].blocks[b], deepcopy(residual))
     
     return model, residual
 
