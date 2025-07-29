@@ -6,7 +6,7 @@ import librosa
 from torchaudio import transforms
 import matplotlib.pyplot as plt
 import numpy as np
-from download_utils import *
+from .download_utils import *
 
 class AudioProcessing():
 
