@@ -2,6 +2,8 @@ from torch.utils.data import DataLoader, Dataset, random_split
 from .processing import AudioProcessing
 from .download_utils import *
 from torch.utils.data import DataLoader
+import torch
+import torch.nn.functional as F
 
 class AudioDataset(Dataset):
 
@@ -53,7 +55,7 @@ class AudioDataset(Dataset):
     
 
 
-def get_fold_dataloaders(audio_dataset, shuffle=False, batch_size=32, num_workers=0):
+def get_fold_dataloaders(audio_dataset, shuffle=False, pad=False, batch_size=32, num_workers=0):
     """
     Return list of (train_loader, val_loader) using the predefined folds on the given dataset.
     """
@@ -73,12 +75,35 @@ def get_fold_dataloaders(audio_dataset, shuffle=False, batch_size=32, num_worker
         train_dataset = AudioDataset(name, train_df, audio_dataset.data_path)
         val_dataset = AudioDataset(name, val_df, audio_dataset.data_path)
 
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+        if pad:
+            train_loader = DataLoader(train_dataset, collate_fn=pad_collate_fn, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
+            val_loader = DataLoader(val_dataset, collate_fn=pad_collate_fn, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+        else:
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
+            val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
         folds.append((train_loader, val_loader))
 
     return folds    
+
+def pad_collate_fn(batch):
+    """
+    Pad audio waveforms to the same length for variable lengths audio datasets
+    """
+    waveforms, labels = zip(*batch)
+
+    def ensure_mono(w):
+        if w.dim() == 2 and w.shape[0] > 1:
+            return w.mean(dim=0, keepdim=True)  # downmix stereo to mono
+        elif w.dim() == 1:
+            return w.unsqueeze(0)  # convert [T] to [1, T]
+        return w 
+
+    waveforms = [ensure_mono(w) for w in waveforms]
+    max_len = max(w.shape[1] for w in waveforms)
+    padded = [F.pad(w, (0, max_len - w.shape[1]), mode="constant") for w in waveforms]
+
+    return torch.stack(padded), torch.tensor(labels)
 
 
 if __name__ == '__main__':
