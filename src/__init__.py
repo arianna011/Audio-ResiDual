@@ -1,2 +1,2 @@
-from .analyze_attention import extract_attention
+from .analyze_attention import *
 from .residual import *
