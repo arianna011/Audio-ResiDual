@@ -22,13 +22,13 @@ class ResiDual(nn.Module):
         D = pca_basis.shape[0]
         self.n_components = n_components or D
 
-        self.register_buffer("mean", pca_mean)
-        self.register_buffer("basis", pca_basis[:self.n_components])
+        self.register_buffer("mean", pca_mean) # [D]
+        self.register_buffer("basis", pca_basis[:self.n_components])  # [D, D]
         self.learnable = nn.Parameter(torch.ones(self.n_components))
 
     def forward(self, x):
         """
-        x: input residual unit vector
+        x: input residual unit vector (shape [B, N, D])
         """
         x_centered = x - self.mean
         x_proj = torch.matmul(x_centered, self.basis.T)
@@ -89,10 +89,6 @@ def patch_block_with_residual(block, residual):
         return x, attn
 
     block.forward = types.MethodType(patched_forward, block)
-
-
-
-
 
 
 def compute_pca_components(model, dataloader, target_layer, n_components=None, max_batches=None, save_path=None):

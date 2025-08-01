@@ -473,11 +473,13 @@ class SwinTransformerBlock(nn.Module):
             x = shifted_x
         x = x.view(B, H * W, C)
 
+        residual_x = self.drop_path(x)
+
         # FFN
-        x = shortcut + self.drop_path(x)
+        x = shortcut + residual_x
         x = x + self.drop_path(self.mlp(self.norm2(x)))
 
-        return x, attn
+        return x, attn, residual_x
 
     def extra_repr(self):
         return f"dim={self.dim}, input_resolution={self.input_resolution}, num_heads={self.num_heads}, " \
@@ -577,11 +579,13 @@ class BasicLayer(nn.Module):
 
     def forward(self, x):
         attns = []
+        residuals = []
         for blk in self.blocks:
             if self.use_checkpoint:
                 x = checkpoint.checkpoint(blk, x)
             else:
-                x, attn = blk(x)
+                x, attn, residual_x = blk(x)
+                residuals.append(residual_x)
                 if not self.training:
                     attns.append(attn.unsqueeze(0))
         if self.downsample is not None:
@@ -589,7 +593,8 @@ class BasicLayer(nn.Module):
         if not self.training:
             attn = torch.cat(attns, dim = 0)
             attn = torch.mean(attn, dim = 0)
-        return x, attn
+        residuals = torch.cat(residuals, dim=1) # [B, N_total, D]
+        return x, attn, residuals
 
     def extra_repr(self):
         return f"dim={self.dim}, input_resolution={self.input_resolution}, depth={self.depth}"
@@ -775,6 +780,7 @@ class HTSAT_Swin_Transformer(nn.Module):
         # A deprecated optimization for using a hierarchical output from different blocks
 
         attns = []
+        residuals = []
 
         frames_num = x.shape[2]        
         x = self.patch_embed(x, longer_idx = longer_idx)
@@ -783,8 +789,9 @@ class HTSAT_Swin_Transformer(nn.Module):
         x = self.pos_drop(x)
 
         for i, layer in enumerate(self.layers):
-            x, attn = layer(x)
+            x, attn, layer_residuals = layer(x)
             attns.append(attn)
+            residuals.append(layer_residuals)
 
         # for x
         x = self.norm(x)
@@ -820,7 +827,8 @@ class HTSAT_Swin_Transformer(nn.Module):
             'clipwise_output': torch.sigmoid(x),
             'fine_grained_embedding': fine_grained_latent_output,
             'embedding': latent_output,
-            'layers_attention': attns
+            'layers_attention': attns,
+            'layers_residuals': residuals
         }
 
         return output_dict
