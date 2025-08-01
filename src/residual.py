@@ -10,6 +10,7 @@ import pickle
 import os
 from copy import deepcopy
 from CLAP import get_audio_features
+import torch.nn.functional as F
 
 class ResiDual(nn.Module):
     """
@@ -91,15 +92,14 @@ def patch_block_with_residual(block, residual):
     block.forward = types.MethodType(patched_forward, block)
 
 
-def compute_pca_components(model, dataloader, target_layer, n_components=None, max_batches=None, save_path=None):
+def compute_pca_components(model, dataloader, target_layer, n_components=None, max_batches=None, 
+                           save_path=None, max_len=480000, data_filling='repeatpad', pad_or_truncate=False):
     """
      Compute PCA basis and mean for Residual in a specific Swin Transformer layer
+     (apply on the attention representations collected from each block in the later)
     """    
     model.eval()
     pca_model = IncrementalPCA(n_components=n_components)
-
-    buffer = []
-    BATCH_THRESHOLD = 30
 
     for i,batch in enumerate(tqdm(dataloader, desc=f"Applying PCA on layer {target_layer}")):
 
@@ -109,32 +109,26 @@ def compute_pca_components(model, dataloader, target_layer, n_components=None, m
         x = batch[0] # batch_size x channels x time samples
         audio_data = quantize_tensor(x.squeeze(1)).cpu()
 
+        func = lambda y: y
+        if pad_or_truncate: func = lambda y: pad_or_truncate(y, target_len=max_len)
         audio_input = [
-                get_audio_features({}, waveform.cpu(), 480000,
+                get_audio_features({}, func(waveform.cpu()), max_len,
                     data_truncating='fusion' if model.enable_fusion else 'rand_trunc',
-                    data_filling='repeatpad',
+                    data_filling=data_filling,
                     audio_cfg=model.model_cfg['audio_cfg'],
                     require_grad=waveform.requires_grad
                 )
                 for waveform in audio_data
             ]
 
-        # Extract attention
+        # Extract attention residuals
         with torch.no_grad():
             out_dict = model.model.get_audio_output_dict(audio_input)
-            attn = out_dict["layers_attention"][target_layer]  # attn: list[batch_size * window_size**2][Tensor of (heads, window_size**2, window_size**2)]
+            res = out_dict["layers_residuals"][target_layer]  # list[Tensor of (batch_size, seq_len, dim)]
 
-        for window_attn in attn:     # one window: Tensor [heads, window_size**2, window_size**2]
-            all_heads = window_attn.cpu().numpy().reshape(-1)
-            buffer.append(all_heads)
+        X = res.cpu().numpy().reshape(-1, res.shape[-1])
+        pca_model.partial_fit(X)
 
-            if len(buffer) >= BATCH_THRESHOLD:
-                X = np.stack(buffer)
-                pca_model.partial_fit(X) # apply PCA on buffered data
-                buffer = []
-
-        # Clear memory
-        del out_dict, attn
         torch.cuda.empty_cache()
         gc.collect()
 
@@ -144,7 +138,9 @@ def compute_pca_components(model, dataloader, target_layer, n_components=None, m
             "mean": pca_model.mean_,
             "explained_variance": pca_model.explained_variance_,
             "explained_variance_ratio": pca_model.explained_variance_ratio_,
-        }
+            "n_components": pca_model.n_components_,
+            "input_dim": X.shape[-1],
+            "num_samples": pca_model.n_samples_seen_}
 
     if save_path:
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
@@ -153,7 +149,6 @@ def compute_pca_components(model, dataloader, target_layer, n_components=None, m
         print(f"PCA results saved to {save_path}")
 
     return pca_results
-
     
 def load_residual(pca_path):
 
@@ -190,6 +185,16 @@ def setup_residual_htsat(model, residual, layer, blocks):
 def quantize_tensor(audio_tensor: torch.Tensor) -> torch.Tensor:
     audio_tensor = torch.clamp(audio_tensor, -1.0, 1.0)
     return (audio_tensor * 32767.0).to(torch.int16).to(torch.float32) / 32767.0
+
+def pad_or_truncate(audio_tensor, target_len=480000):
+    if audio_tensor.dim() > 1:
+        audio_tensor = audio_tensor.mean(dim=0) 
+    length = audio_tensor.shape[0]
+    if length > target_len:
+        return audio_tensor[:target_len]
+    elif length < target_len:
+        return F.pad(audio_tensor, (0, target_len - length), mode='constant')
+    return audio_tensor
 
 
 # from https://github.com/LAION-AI/CLAP/blob/main/src/laion_clap/clap_module/htsat.py
