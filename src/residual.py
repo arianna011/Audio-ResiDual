@@ -8,7 +8,6 @@ import numpy as np
 import gc
 import pickle
 import os
-from copy import deepcopy
 from CLAP import get_audio_features
 import torch.nn.functional as F
 
@@ -151,7 +150,9 @@ def compute_pca_components(model, dataloader, target_layer, n_components=None, m
     return pca_results
     
 def load_residual(pca_path):
-
+    """
+    Retrieve a ResiDual unit from PCA values stored in the input file
+    """
     with open(pca_path, "rb") as f:
         pca_results = pickle.load(f)
 
@@ -163,9 +164,9 @@ def load_residual(pca_path):
 
     return ResiDual(basis, mean)
 
-def setup_residual_htsat(model, residual, layer, blocks):
+def setup_residual_htsat(model, residual, layers):
     """
-    Inject ResiDual into the block locations (in a single layer) given in the input target list
+    Inject ResiDual into the layers given in the input target list
     """
 
     # freeze everything except ResiDual scaling parameters
@@ -176,8 +177,11 @@ def setup_residual_htsat(model, residual, layer, blocks):
 
     residual.learnable.requires_grad = True
 
-    for b in blocks:
-        patch_block_with_residual(model.layers[layer].blocks[b], deepcopy(residual))
+    for l in layers:
+        if l >= len(model.layers):
+            raise ValueError(f"Layer index {l} out of range for model with {len(model.layers)} layers")
+        for b in range(len(model.layers[l].blocks)):
+            patch_block_with_residual(model.layers[l].blocks[b], residual)
     
     return model, residual
 
