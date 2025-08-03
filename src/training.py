@@ -37,7 +37,7 @@ def train_one_epoch_zero_shot(model, dataloader, text_embeddings, optimizer, cri
             ]  
         
         with torch.no_grad():
-            audio_embeds = model.get_audio_embedding_from_data(x = audio_input, use_tensor=False) # batch_size x D
+            audio_embeds = model.get_audio_embedding_from_data(x = audio_input, use_tensor=True) # batch_size x D
 
         audio_embeds = audio_embeds.to(device).float()
 
