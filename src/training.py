@@ -59,77 +59,114 @@ def train_one_epoch_zero_shot(model, dataloader, text_embeddings, optimizer, cri
     return total_loss / total, acc
 
 
-def train(clap, dataloader, text_embeds, pca_path, layers, save_path, lr=0.01, epochs=20):
+def evaluate(model, dataloader, text_embeddings, criterion, device, 
+            max_len=480000, data_filling='repeatpad', pad_or_truncate=False):
     """
-    Train ResiDual and log with Weights&Bias
+    Evaluate ResiDual on zero-shot classification with fixed label text embeddings
+    """
+
+    model.eval()
+    total_loss, correct, total = 0.0, 0, 0
+
+    with torch.no_grad():
+        for x, true_labels in tqdm(dataloader, desc="Evaluating (zero-shot)"):
+
+            audio_data = quantize_tensor(x.squeeze(1)).cpu()
+
+            # extract input features for each waveform
+            func = lambda y: y
+            if pad_or_truncate: func = lambda y: pad_or_truncate(y, target_len=max_len)
+            audio_input = [
+                    get_audio_features({}, func(waveform.cpu()), max_len,
+                        data_truncating='fusion' if model.enable_fusion else 'rand_trunc',
+                        data_filling=data_filling,
+                        audio_cfg=model.model_cfg['audio_cfg'],
+                        require_grad=waveform.requires_grad
+                    )
+                    for waveform in audio_data
+                ]  
+            
+            out_dict = model.model.get_audio_output_dict(audio_input)
+            audio_embeds = out_dict["embedding"] # batch_size x D
+            audio_embeds = audio_embeds.to(device).float()
+
+            # compute similarities between audio and text embeddings
+            similarities = torch.matmul(audio_embeds, text_embeddings.T.to(device))  # batch_size x num_classes
+            loss = criterion(similarities, true_labels.to(device))
+            preds = similarities.argmax(dim=-1).cpu()
+            correct += (preds == true_labels).sum().item()
+            total += x.size(0)
+            total_loss += loss.item() * x.size(0)
+
+    # return average loss and accuracy
+    acc = correct / total
+    return total_loss / total, acc
+
+
+def train_with_config(config, clap, dataset_name, folds, text_embeds, pca_path):
+    """
+    Train ResiDual with a Weights&Bias sweep
 
     Params:
+        config: W&B sweep configuration
         clap: entire CLAP Module
-        dataloader: train dataset
+        dataset_name: id of the considered dataset
+        folds: train and validation dataloaders for each fold of the considered dataset
         text_embdes: embeddings of the class labels
-        pca_path: path to the file where PCA basis and mean are stored
-        layers: list of layers where to inject ResiDual units
-        save_path: path to the file where to store model checkpoints
+        pca_path: path to the directory containing files storing PCA basis and mean
     """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    os.makedirs(save_path, exist_ok=True)
 
-    model_name = "ResiDual"
-    pca_name = Path(pca_path).stem
+    lr = config.learning_rate
+    epochs = config.epochs
+    layers = config.inject_layers
     layers_str = '_'.join(map(str, layers))
-    run_id = f"{model_name}_{pca_name}_layers{layers_str}"
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    wandb.init(
-        project="residual-training",
-        config={
-            "pca_path": pca_path,
-            "layers": layers,
-            "learning_rate": lr,
-            "epochs": epochs        
-        }
-    )
-    wandb.run.name = run_id
-    wandb.run.tags = [model_name, f"layers:{layers_str}", f"pca:{pca_name}"]
+    run_name = f"lr{lr}_ep{epochs}_L{layers_str}"
+    wandb.run.name = run_name
+    wandb.config.inject_layers_str = layers_str
+    
+    fold_accuracies = []
+    for fold_idx, (train_loader, val_loader) in enumerate(folds):
 
-    best_acc = 0.0
-    best_ckpt_path = None
-    all_accuracies = []
-    residual_unit = load_residual(pca_path).to(device)
+        best_acc = 0.0
+        pca_file = os.path.join(pca_path, f"{dataset_name}-fold{fold_idx}.csv")
 
-    audio_encoder = clap.model.audio_branch
-    # inject ResiDual
-    new_model, residual_unit = setup_residual_htsat(audio_encoder, residual_unit, layers)
-    clap.model.audio_branch = new_model
+        # reload frozen CLAP and inject new ResiDual unit
+        residual = load_residual(pca_file).to(device)
+        audio_encoder = clap.model.audio_branch
+        model, residual = setup_residual_htsat(audio_encoder, residual, layers)
+        clap.model.audio_branch = model
 
-    # setup training
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(residual_unit.parameters(), lr=lr)
+        # setup training
+        optimizer = torch.optim.Adam(residual.parameters(), lr=lr)
+        criterion = nn.CrossEntropyLoss()
 
-    for epoch in range(epochs):
-        train_loss, train_acc = train_one_epoch_zero_shot(clap, dataloader, text_embeds, optimizer, criterion, device)
-        wandb.log({
-            "epoch": epoch + 1,
-            "train_loss": train_loss,
-            "train_accuracy": train_acc
-        })
-        all_accuracies.append(train_acc)
+        for epoch in range(epochs):
+            train_loss, train_acc = train_one_epoch_zero_shot(clap, train_loader, text_embeds, optimizer, criterion, device)
+            val_loss, val_acc = evaluate(clap, val_loader, text_embeds, criterion, device)
 
-        # save best model checkpoint
-        if train_acc > best_acc:
-            best_acc = train_acc
-            best_ckpt_path = os.path.join(save_path, run_id + "_best.pt")
-            torch.save(residual_unit.state_dict(), best_ckpt_path)
+            wandb.log({
+                "fold": fold_idx + 1,
+                "epoch": epoch + 1,
+                "train/loss": train_loss,
+                "train/accuracy": train_acc,
+                "val/loss": val_loss,
+                "val/accuracy": val_acc
+            })
 
-            artifact = wandb.Artifact(
-                f"{run_id}_best", 
-                type="model",
-                description=f"Best ResiDual model trained with layers {layers}, PCA: {pca_name}, accuracy: {best_acc:.4f}"
-            )
-            artifact.add_file(best_ckpt_path)
-            wandb.log_artifact(artifact) 
-            os.remove(best_ckpt_path) # remove local file
+            if val_acc > best_acc:
+                best_acc = val_acc
 
+        wandb.run.summary[f"fold_{fold_idx+1}_best_val_accuracy"] = best_acc
+        fold_accuracies.append(best_acc)
 
-    print(f"\nFinal average accuracy after {epochs} epochs: {np.mean(all_accuracies):.4f} ± {np.std(all_accuracies):.4f}")
+    mean_acc = np.mean(fold_accuracies)
+    std_acc = np.std(fold_accuracies)
+    wandb.run.summary["cv/accuracy_mean"] = mean_acc
+    wandb.run.summary["cv/accuracy_std"] = std_acc
+
+    print(f"\n{len(folds)}-fold CV Accuracy: {mean_acc:.4f} ± {std_acc:.4f}")
     wandb.finish()
+
 
