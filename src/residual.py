@@ -84,12 +84,17 @@ def patch_block_with_residual(block, residual):
 
         x = x.view(B, H * W, C)
         
-        x = residual(x) # apply ResiDual after attention and before MLP
+        residual_x = self.drop_path(x)
+        residual_x = residual(residual_x)   # apply ResiDual after attention and before MLP
+
+        # FFN
+        x = shortcut + residual_x
+        x = x + self.drop_path(self.mlp(self.norm2(x)))
 
         x = shortcut + drop_path(x)
         x = x + drop_path(orig_mlp(norm2(x)))
 
-        return x, attn
+        return x, attn, residual_x
 
     block.forward = types.MethodType(patched_forward, block)
 
