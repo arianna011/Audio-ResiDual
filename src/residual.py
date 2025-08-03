@@ -29,10 +29,13 @@ class ResiDual(nn.Module):
         """
         x: input residual unit vector (shape [B, N, D])
         """
-        x_centered = x - self.mean
-        x_proj = torch.matmul(x_centered, self.basis.T)
+        mean = self.mean.to(x.device)
+        basis = self.basis.to(x.device)
+        
+        x_centered = x - mean
+        x_proj = torch.matmul(x_centered, basis.T)
         x_scaled = x_proj * self.learnable
-        x_out = torch.matmul(x_scaled, self.basis)
+        x_out = torch.matmul(x_scaled, basis)
 
         return x_out
     
