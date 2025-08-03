@@ -32,7 +32,7 @@ def train_one_epoch_zero_shot(model, dataloader, text_embeddings, optimizer, cri
                     data_filling=data_filling,
                     audio_cfg=model.model_cfg['audio_cfg'],
                     require_grad=waveform.requires_grad
-                )
+                )["waveform"]
                 for waveform in audio_data
             ]  
         
@@ -81,7 +81,7 @@ def evaluate(model, dataloader, text_embeddings, criterion, device,
                         data_filling=data_filling,
                         audio_cfg=model.model_cfg['audio_cfg'],
                         require_grad=waveform.requires_grad
-                    )
+                    )["waveform"]
                     for waveform in audio_data
                 ]  
             
