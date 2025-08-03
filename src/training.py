@@ -22,22 +22,8 @@ def train_one_epoch_zero_shot(model, dataloader, text_embeddings, optimizer, cri
         optimizer.zero_grad()
 
         audio_data = quantize_tensor(x.squeeze(1)).cpu()
-
-        # extract input features for each waveform
-        func = lambda y: y
-        if pad_or_truncate: func = lambda y: pad_or_truncate(y, target_len=max_len)
-        audio_input = [
-                get_audio_features({}, func(waveform.cpu()), max_len,
-                    data_truncating='fusion' if model.enable_fusion else 'rand_trunc',
-                    data_filling=data_filling,
-                    audio_cfg=model.model_cfg['audio_cfg'],
-                    require_grad=waveform.requires_grad
-                )["waveform"].detach().cpu().numpy()
-                for waveform in audio_data
-            ]  
-        
         with torch.no_grad():
-            audio_embeds = model.get_audio_embedding_from_data(x = audio_input, use_tensor=True) # batch_size x D
+            audio_embeds = model.get_audio_embedding_from_data(x = audio_data, use_tensor=True) # batch_size x D
 
         audio_embeds = audio_embeds.to(device).float()
 
@@ -71,21 +57,7 @@ def evaluate(model, dataloader, text_embeddings, criterion, device,
         for x, true_labels in tqdm(dataloader, desc="Evaluating (zero-shot)"):
 
             audio_data = quantize_tensor(x.squeeze(1)).cpu()
-
-            # extract input features for each waveform
-            func = lambda y: y
-            if pad_or_truncate: func = lambda y: pad_or_truncate(y, target_len=max_len)
-            audio_input = [
-                    get_audio_features({}, func(waveform.cpu()), max_len,
-                        data_truncating='fusion' if model.enable_fusion else 'rand_trunc',
-                        data_filling=data_filling,
-                        audio_cfg=model.model_cfg['audio_cfg'],
-                        require_grad=waveform.requires_grad
-                    )["waveform"].detach().cpu().numpy()
-                    for waveform in audio_data
-                ]  
-            
-            audio_embeds = model.get_audio_embedding_from_data(x = audio_input, use_tensor=False) # batch_size x D
+            audio_embeds = model.get_audio_embedding_from_data(x = audio_data, use_tensor=False) # batch_size x D
             audio_embeds = audio_embeds.to(device).float()
 
             # compute similarities between audio and text embeddings
