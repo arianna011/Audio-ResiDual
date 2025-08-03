@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import types
 from sklearn.decomposition import IncrementalPCA
-from collections import defaultdict
 from tqdm import tqdm
 import numpy as np
 import gc
@@ -164,26 +163,36 @@ def load_residual(pca_path):
 
     return ResiDual(basis, mean)
 
-def setup_residual_htsat(model, residual, layers):
+def setup_residual_htsat(model, pca_files, layers):
     """
     Inject ResiDual into the layers given in the input target list
+
+    Params:
+        model: audio encoder
+        pca_files: dictionary with key = layer and value = path to the corresponding PCA file
+        layers: layers of the audio encoder where to inject residual
     """
 
     # freeze everything except ResiDual scaling parameters
     for p in model.parameters():
         p.requires_grad = False
-    for p in residual.parameters():
-        p.requires_grad = False
 
-    residual.learnable.requires_grad = True
-
+    residuals = {}
     for l in layers:
         if l >= len(model.layers):
             raise ValueError(f"Layer index {l} out of range for model with {len(model.layers)} layers")
+        res = load_residual(pca_files[l])
+        for p in res.parameters():
+            p.requires_grad = False
+        res.learnable.requires_grad = True
+        residuals[l] = res
+
+    # inject ResiDual units in each layer
+    for l in layers:
         for b in range(len(model.layers[l].blocks)):
-            patch_block_with_residual(model.layers[l].blocks[b], residual)
+            patch_block_with_residual(model.layers[l].blocks[b], residuals[l])
     
-    return model, residual
+    return model, residuals
 
 
 def quantize_tensor(audio_tensor: torch.Tensor) -> torch.Tensor:

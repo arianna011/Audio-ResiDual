@@ -130,16 +130,15 @@ def train_with_config(config, clap, dataset_name, folds, text_embeds, pca_path):
     for fold_idx, (train_loader, val_loader) in enumerate(folds):
 
         best_acc = 0.0
-        pca_file = os.path.join(pca_path, f"{dataset_name}-fold{fold_idx}.csv")
+        pca_files = {l: os.path.join(pca_path, dataset_name, f"layer_{l}_evalfold_{fold_idx}") for l in layers}
 
         # reload frozen CLAP and inject new ResiDual unit
-        residual = load_residual(pca_file).to(device)
         audio_encoder = clap.model.audio_branch
-        model, residual = setup_residual_htsat(audio_encoder, residual, layers)
+        model, residuals = setup_residual_htsat(audio_encoder, pca_files, layers)
         clap.model.audio_branch = model
 
         # setup training
-        optimizer = torch.optim.Adam(residual.parameters(), lr=lr)
+        optimizer = torch.optim.Adam([res.learnable for res in residuals.values()], lr=lr)
         criterion = nn.CrossEntropyLoss()
 
         for epoch in range(epochs):
