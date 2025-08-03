@@ -31,10 +31,11 @@ class ResiDual(nn.Module):
         """
         mean = self.mean.to(x.device)
         basis = self.basis.to(x.device)
-        
+        learnable = self.learnable.to(x.device)
+
         x_centered = x - mean
         x_proj = torch.matmul(x_centered, basis.T)
-        x_scaled = x_proj * self.learnable
+        x_scaled = x_proj * learnable
         x_out = torch.matmul(x_scaled, basis)
 
         return x_out
