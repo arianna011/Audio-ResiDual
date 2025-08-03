@@ -118,7 +118,7 @@ class CLAP_Module(torch.nn.Module):
             for n in param_names:
                 logging.info(n, "\t", "Loaded" if n in ckpt else "Unloaded")
     
-    def get_audio_embedding_from_filelist(self, x, use_tensor=False, data_fil="repeat_pad"):
+    def get_audio_embedding_from_filelist(self, x, use_tensor=False, data_fil="repeatpad"):
         """get audio embeddings from the audio file list
 
         Parameters
@@ -155,7 +155,7 @@ class CLAP_Module(torch.nn.Module):
         return audio_embed
 
 
-    def get_audio_embedding_from_data(self, x, use_tensor=False, data_fil="repeat_pad"):
+    def get_audio_embedding_from_data(self, x, use_tensor=False, data_fil="repeatpad"):
         """get audio embeddings from the audio data
 
         Parameters
