@@ -54,7 +54,7 @@ def evaluate(model, dataloader, text_embeddings, criterion, device):
 
             audio_data = quantize_tensor(x.squeeze(1)).cpu().numpy()
             audio_embeds = model.get_audio_embedding_from_data(x = audio_data, use_tensor=False) # batch_size x D
-            audio_embeds = audio_embeds.to(device).float()
+            audio_embeds = torch.tensor(audio_embeds).to(device).float()
 
             # compute similarities between audio and text embeddings
             similarities = torch.matmul(audio_embeds, text_embeddings.T.to(device))  # batch_size x num_classes
