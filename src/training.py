@@ -21,10 +21,8 @@ def train_one_epoch_zero_shot(model, dataloader, text_embeddings, optimizer, cri
     for x, true_labels in tqdm(dataloader, desc="Training (zero-shot)"):
         optimizer.zero_grad()
 
-        audio_data = quantize_tensor(x.squeeze(1)).cpu()
-        with torch.no_grad():
-            audio_embeds = model.get_audio_embedding_from_data(x = audio_data, use_tensor=True) # batch_size x D
-
+        audio_data = x.squeeze(1).to(device)
+        audio_embeds = model.get_audio_embedding_from_data(x = audio_data, use_tensor=True) # batch_size x D
         audio_embeds = audio_embeds.to(device).float()
 
         # compute similarities between audio and text embeddings
