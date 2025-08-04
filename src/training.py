@@ -91,6 +91,8 @@ def train_with_config(config, clap, dataset_name, folds, text_embeds, pca_path):
     run_name = f"lr{lr}_ep{epochs}_L{layers_str}"
     wandb.run.name = run_name
     wandb.config.inject_layers_str = layers_str
+
+    audio_encoder = clap.model.audio_branch
     
     fold_accuracies = []
     for fold_idx, (train_loader, val_loader) in enumerate(folds):
@@ -99,7 +101,6 @@ def train_with_config(config, clap, dataset_name, folds, text_embeds, pca_path):
         pca_files = {l: os.path.join(pca_path, dataset_name, f"layer_{l}_evalfold_{fold_idx}") for l in layers}
 
         # reload frozen CLAP and inject new ResiDual unit
-        audio_encoder = clap.model.audio_branch
         model, residuals = setup_residual_htsat(audio_encoder, pca_files, layers)
         clap.model.audio_branch = model
 
