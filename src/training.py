@@ -9,8 +9,7 @@ from pathlib import Path
 import wandb
 
 
-def train_one_epoch_zero_shot(model, dataloader, text_embeddings, optimizer, criterion, device, 
-                              max_len=480000, data_filling='repeatpad', pad_or_truncate=False):
+def train_one_epoch_zero_shot(model, dataloader, text_embeddings, optimizer, criterion, device):
     """
     Train ResiDual via zero-shot supervision using fixed label text embeddings
     """
@@ -42,8 +41,7 @@ def train_one_epoch_zero_shot(model, dataloader, text_embeddings, optimizer, cri
     return total_loss / total, acc
 
 
-def evaluate(model, dataloader, text_embeddings, criterion, device, 
-            max_len=480000, data_filling='repeatpad', pad_or_truncate=False):
+def evaluate(model, dataloader, text_embeddings, criterion, device):
     """
     Evaluate ResiDual on zero-shot classification with fixed label text embeddings
     """
@@ -54,7 +52,7 @@ def evaluate(model, dataloader, text_embeddings, criterion, device,
     with torch.no_grad():
         for x, true_labels in tqdm(dataloader, desc="Evaluating (zero-shot)"):
 
-            audio_data = quantize_tensor(x.squeeze(1)).cpu()
+            audio_data = quantize_tensor(x.squeeze(1)).cpu().numpy()
             audio_embeds = model.get_audio_embedding_from_data(x = audio_data, use_tensor=False) # batch_size x D
             audio_embeds = audio_embeds.to(device).float()
 
