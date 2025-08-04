@@ -127,7 +127,7 @@ def train_with_config(config, clap, dataset_name, folds, text_embeds, pca_path):
 
             # log learnable parameter values
             for layer_id, residual in residuals.items():
-                wandb.log({f'residual/learnable/layer_{layer_id}/fold_{fold_idx}': residual.learnable.item()}, step=global_step)
+                wandb.log({f'residual/learnable/layer_{layer_id}/fold_{fold_idx}':  wandb.Histogram(residual.learnable.detach().cpu().numpy())}, step=global_step)
 
             global_step += 1
 
