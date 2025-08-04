@@ -98,6 +98,7 @@ def train_with_config(config, clap, dataset_name, folds, text_embeds, pca_path):
     for fold_idx, (train_loader, val_loader) in enumerate(folds):
 
         best_acc = 0.0
+        global_step = 0
         pca_files = {l: os.path.join(pca_path, dataset_name, f"layer_{l}_evalfold_{fold_idx}") for l in layers}
 
         # reload frozen CLAP and inject new ResiDual unit
@@ -124,8 +125,14 @@ def train_with_config(config, clap, dataset_name, folds, text_embeds, pca_path):
             if val_acc > best_acc:
                 best_acc = val_acc
 
+            # log learnable parameter values
+            for layer_id, residual in residuals.items():
+                wandb.log({f'residual/layer_{layer_id}_fold_{fold_idx}_learnable': wandb.Histogram(residual.learnable.detach().cpu().numpy())}, step=global_step)
+
+            global_step += 1
+
         wandb.run.summary[f"fold_{fold_idx+1}_best_val_accuracy"] = best_acc
-        fold_accuracies.append(best_acc)
+        fold_accuracies.append(best_acc)   
 
     mean_acc = np.mean(fold_accuracies)
     std_acc = np.std(fold_accuracies)

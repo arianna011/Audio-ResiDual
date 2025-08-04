@@ -9,6 +9,7 @@ import pickle
 import os
 from CLAP import get_audio_features
 import torch.nn.functional as F
+import copy
 
 class ResiDual(nn.Module):
     """
@@ -182,6 +183,8 @@ def setup_residual_htsat(model, pca_files, layers):
         layers: layers of the audio encoder where to inject residual
     """
 
+    model = copy.deepcopy(model)
+    
     # freeze everything except ResiDual scaling parameters
     for p in model.parameters():
         p.requires_grad = False
