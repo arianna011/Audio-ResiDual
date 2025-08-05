@@ -5,8 +5,8 @@ from CLAP import get_audio_features
 from src import quantize_tensor, pad_or_truncate, load_residual, setup_residual_htsat
 import numpy as np
 import os
-from pathlib import Path
 import wandb
+import gc
 
 
 def train_one_epoch_zero_shot(model, dataloader, text_embeddings, optimizer, criterion, device):
@@ -136,5 +136,7 @@ def train_with_config(config, clap, dataset_name, folds, text_embeds, pca_path, 
 
     print(f"Fold {eval_fold} - Best Val Acc: {best_acc:.4f}")
     wandb.finish()
+    torch.cuda.empty_cache()
+    gc.collect()
 
 
