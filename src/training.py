@@ -82,6 +82,7 @@ def train_with_config(config, clap, dataset_name, folds, text_embeds, pca_path, 
         pca_path: path to the directory containing files storing PCA basis and mean
     """
 
+    wandb.init(project=project_name, config=config)
     lr = config.learning_rate
     epochs = config.epochs
     layers = config.inject_layers
@@ -91,15 +92,7 @@ def train_with_config(config, clap, dataset_name, folds, text_embeds, pca_path, 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     run_name = f"lr={lr}_ep={epochs}_L={layers_str}_evalfold={eval_fold}"
-    
-    wandb.init(project=project_name, name=run_name, config={
-        "dataset": dataset_name,
-        "fold": eval_fold,
-        "learning_rate": lr,
-        "epochs": epochs,
-        "inject_layers": layers,
-        "inject_layers_str": layers_str
-    })
+    wandb.run.name = run_name
 
     train_loader, val_loader = folds[eval_fold]
     pca_files = {l: os.path.join(pca_path, dataset_name, f"layer_{l}_evalfold_{eval_fold}") for l in layers}
