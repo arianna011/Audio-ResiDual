@@ -134,12 +134,12 @@ def train_with_config(config, clap, dataset_name, folds, text_embeds, pca_path, 
 
         # log learnable parameter values
         for layer_id, residual in residuals.items():
-                wandb.log({f'residual/learnable/layer_{layer_id}/fold_{eval_fold}':  wandb.Histogram(residual.learnable.detach().cpu().numpy())}, step=epoch+1)
+                wandb.log({f'learnable/layer_{layer_id}/fold_{eval_fold}':  wandb.Histogram(residual.learnable.detach().cpu().numpy())}, step=epoch+1)
 
     
     wandb.run.summary[f"fold_{eval_fold}_best_val_accuracy"] = best_acc
     for layer_id, residual in residuals.items():
-        wandb.run.summary[f"residual/final/layer_{layer_id}/fold_{eval_fold}"] = wandb.Histogram(residual.learnable.detach().cpu().numpy())  
+        wandb.run.summary[f"final_learnable/layer_{layer_id}/fold_{eval_fold}"] = wandb.Histogram(residual.learnable.detach().cpu().numpy())  
 
     print(f"Fold {eval_fold} - Best Val Acc: {best_acc:.4f}")
     wandb.finish()
