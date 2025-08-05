@@ -69,74 +69,79 @@ def evaluate(model, dataloader, text_embeddings, criterion, device):
     return total_loss / total, acc
 
 
-def train_with_config(config, clap, dataset_name, folds, text_embeds, pca_path):
+def train_with_config(config, clap, dataset_name, folds, text_embeds, pca_path, project_name="residual-clap"):
     """
-    Train ResiDual with a Weights&Bias sweep
+    Train ResiDual with a Weights&Bias sweep with K-fold cross validation
 
     Params:
         config: W&B sweep configuration
         clap: entire CLAP Module
         dataset_name: id of the considered dataset
-        folds: train and validation dataloaders for each fold of the considered dataset
-        text_embdes: embeddings of the class labels
+        folds: ordered list of (train_loader, val_loader) dataloaders for the given dataset
+        text_embeds: embeddings of the class labels
         pca_path: path to the directory containing files storing PCA basis and mean
     """
 
     lr = config.learning_rate
     epochs = config.epochs
     layers = config.inject_layers
+    eval_fold = config.eval_fold
+
     layers_str = '_'.join(map(str, layers))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    run_name = f"lr{lr}_ep{epochs}_L{layers_str}"
-    wandb.run.name = run_name
-    wandb.config.inject_layers_str = layers_str
-
-    audio_encoder = clap.model.audio_branch
+    run_name = f"lr={lr}_ep={epochs}_L={layers_str}_evalfold={eval_fold}"
     
-    fold_accuracies = []
-    for fold_idx, (train_loader, val_loader) in enumerate(folds):
+    wandb.init(project=project_name, name=run_name, config={
+        "dataset": dataset_name,
+        "fold": eval_fold,
+        "learning_rate": lr,
+        "epochs": epochs,
+        "inject_layers": layers,
+        "inject_layers_str": layers_str
+    })
 
-        best_acc = 0.0
-        pca_files = {l: os.path.join(pca_path, dataset_name, f"layer_{l}_evalfold_{fold_idx}") for l in layers}
+    train_loader, val_loader = folds[eval_fold]
+    pca_files = {l: os.path.join(pca_path, dataset_name, f"layer_{l}_evalfold_{eval_fold}") for l in layers}
+   
+    # load frozen CLAP and inject new ResiDual unit
+    audio_encoder = clap.model.audio_branch
+    new_htsat, residuals = setup_residual_htsat(audio_encoder, pca_files, layers)
+    clap.model.audio_branch = new_htsat
 
-        # reload frozen CLAP and inject new ResiDual unit
-        model, residuals = setup_residual_htsat(audio_encoder, pca_files, layers)
-        clap.model.audio_branch = model
+    # setup training
+    optimizer = torch.optim.Adam([res.learnable for res in residuals.values()], lr=lr)
+    criterion = nn.CrossEntropyLoss()
+    
+    best_acc = 0.0
 
-        # setup training
-        optimizer = torch.optim.Adam([res.learnable for res in residuals.values()], lr=lr)
-        criterion = nn.CrossEntropyLoss()
+    for epoch in range(epochs):
+            
+        train_loss, train_acc = train_one_epoch_zero_shot(clap, train_loader, text_embeds, optimizer, criterion, device)
+        val_loss, val_acc = evaluate(clap, val_loader, text_embeds, criterion, device)
 
-        for epoch in range(epochs):
-            train_loss, train_acc = train_one_epoch_zero_shot(clap, train_loader, text_embeds, optimizer, criterion, device)
-            val_loss, val_acc = evaluate(clap, val_loader, text_embeds, criterion, device)
+        if val_acc > best_acc:
+            best_acc = val_acc
 
-            wandb.log({
-                "fold": fold_idx + 1,
+        wandb.log({
+                "fold": eval_fold,
                 "epoch": epoch + 1,
                 "train/loss": train_loss,
                 "train/accuracy": train_acc,
                 "val/loss": val_loss,
                 "val/accuracy": val_acc
-            })
+            }, step=epoch+1)
 
-            if val_acc > best_acc:
-                best_acc = val_acc
+        # log learnable parameter values
+        for layer_id, residual in residuals.items():
+                wandb.log({f'residual/learnable/layer_{layer_id}/fold_{eval_fold}':  wandb.Histogram(residual.learnable.detach().cpu().numpy())}, step=epoch+1)
 
-            # log learnable parameter values
-            for layer_id, residual in residuals.items():
-                wandb.log({f'residual/learnable/layer_{layer_id}/fold_{fold_idx}':  wandb.Histogram(residual.learnable.detach().cpu().numpy())})
+    
+    wandb.run.summary[f"fold_{eval_fold}_best_val_accuracy"] = best_acc
+    for layer_id, residual in residuals.items():
+        wandb.run.summary[f"residual/final/layer_{layer_id}/fold_{eval_fold}"] = wandb.Histogram(residual.learnable.detach().cpu().numpy())  
 
-        wandb.run.summary[f"fold_{fold_idx+1}_best_val_accuracy"] = best_acc
-        fold_accuracies.append(best_acc)   
-
-    mean_acc = np.mean(fold_accuracies)
-    std_acc = np.std(fold_accuracies)
-    wandb.run.summary["cv/accuracy_mean"] = mean_acc
-    wandb.run.summary["cv/accuracy_std"] = std_acc
-
-    print(f"\n{len(folds)}-fold CV Accuracy: {mean_acc:.4f} ± {std_acc:.4f}")
+    print(f"Fold {eval_fold} - Best Val Acc: {best_acc:.4f}")
     wandb.finish()
 
 
