@@ -114,7 +114,9 @@ def visualize_eval_metrics(save_dir, dataset_name, n_folds, inject_layers, k_top
     visualize aggregated evaluation metrics like accuracy, precision, recall and confusion matrix
     """
 
-    layers_str = '_'.join(map(str, inject_layers))
+    layers_str = ""
+    if inject_layers != []:
+        layers_str = '_'.join(map(str, inject_layers))
     class_names = DATASETS[dataset_name]["class_labels"]
     n_classes = len(class_names)
 
@@ -124,7 +126,10 @@ def visualize_eval_metrics(save_dir, dataset_name, n_folds, inject_layers, k_top
     agg_cm = np.zeros((n_classes, n_classes), dtype=np.int64)
 
     for i in range(n_folds):
-        save_file = os.path.join(save_dir, f'layers_{layers_str}_evalfold_{i}.npz')
+        if layers_str: # consider ResiDual metrics
+            save_file = os.path.join(save_dir, f'layers_{layers_str}_evalfold_{i}.npz')
+        else: # consider linear projection metrics
+            save_file = os.path.join(save_dir, f'linear_evalfold_{i}.npz')
         data = np.load(save_file)
 
         similarities = data["similarities"]
