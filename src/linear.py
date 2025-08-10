@@ -81,13 +81,13 @@ def train_and_eval_linear_head(clap, dataset_name, folds, n_classes, save_dir, l
             loss, acc = train_linear_head_one_epoch(model, train_load, optimizer, criterion, device)
             print(f"Train loss: {loss}, Train accuracy: {acc}")
 
-            preds, targs, similarities = eval_linear_head(model, val_load, device)
-            np.savez_compressed(
+        preds, targs, similarities = eval_linear_head(model, val_load, device)
+        np.savez_compressed(
                 save_file,
                 similarities = similarities,
                 predictions = np.array(preds),
                 targets = np.array(targs)
-            )
+        )
         
         torch.cuda.empty_cache()
         gc.collect()
