@@ -39,7 +39,9 @@ def train_and_evaluate_residual(clap, dataset_name, folds, text_embeds, pca_path
     save_dir = os.path.join(save_dir, dataset_name, "ResiDual")
     os.makedirs(save_dir, exist_ok=True)
 
-    for i, (train_load, val_load) in tqdm(enumerate(folds)):
+    for i, (train_load, val_load) in enumerate(folds):
+
+        print(f'===== Eval fold {i} =====')
 
         save_file = os.path.join(save_dir, f'layers_{layers_str}_evalfold_{i}.npz')
         pca_files = {l: os.path.join(pca_path, dataset_name, f"layer_{l}_evalfold_{i}") for l in inject_layers}
