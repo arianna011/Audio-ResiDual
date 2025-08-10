@@ -11,7 +11,7 @@ class HTSATLinearClassifier(nn.Module):
     Frozen HTSAT audio encoder with a trainable linear head for classification
     """
 
-    def __init__(self, clap, n_classes, feat_dim=1024):
+    def __init__(self, clap, n_classes, feat_dim=512):
         super().__init__()
         self.clap = clap
         self.feat_dim = feat_dim
