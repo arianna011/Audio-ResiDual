@@ -17,7 +17,7 @@ class HTSATLinearClassifier(nn.Module):
         self.feat_dim = feat_dim
         self.n_classes = n_classes
 
-        for p in self.encoder.parameters():
+        for p in self.clap.parameters():
             p.requires_grad = False
         
         self.classifier = nn.Linear(self.feat_dim, self.n_classes)
