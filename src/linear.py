@@ -59,7 +59,7 @@ def train_and_eval_linear_head(clap, dataset_name, folds, n_classes, save_dir, l
     and save classification predictions on file
     """
 
-    save_dir = os.path.join(save_dir, dataset_name)
+    save_dir = os.path.join(save_dir, dataset_name, "Linear")
     os.makedirs(save_dir, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -67,7 +67,7 @@ def train_and_eval_linear_head(clap, dataset_name, folds, n_classes, save_dir, l
 
         print(f'===== Eval fold {i} =====')
 
-        save_file = os.path.join(save_dir, f'linear_evalfold_{i}.npz')
+        save_file = os.path.join(save_dir, f'evalfold_{i}.npz')
         model = HTSATLinearClassifier(
             clap=clap,
             n_classes=n_classes).to(device)

@@ -36,7 +36,7 @@ def train_and_evaluate_residual(clap, dataset_name, folds, text_embeds, pca_path
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     layers_str = '_'.join(map(str, inject_layers))
 
-    save_dir = os.path.join(save_dir, dataset_name)
+    save_dir = os.path.join(save_dir, dataset_name, "ResiDual")
     os.makedirs(save_dir, exist_ok=True)
 
     for i, (train_load, val_load) in tqdm(enumerate(folds)):
@@ -107,6 +107,25 @@ def evaluate_zero_shot(model, dataloader, text_embeddings, device):
     return all_preds, all_targets, full_similarities
 
 
+def evaluate_baseline_clap(clap, dataset_name, folds, text_embeds, save_dir):
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    save_dir = os.path.join(save_dir, dataset_name, "Baseline")
+    os.makedirs(save_dir, exist_ok=True)
+
+    for i, (_, val_load) in tqdm(enumerate(folds)):
+
+        save_file = os.path.join(save_dir, f'evalfold_{i}.npz')
+        preds, targs, similarities = evaluate_zero_shot(clap, val_load, text_embeds, device)
+        np.savez_compressed(
+            save_file,
+            similarities = similarities,
+            predictions = np.array(preds),
+            targets = np.array(targs)
+        )
+
+
 
 def visualize_eval_metrics(save_dir, dataset_name, n_folds, inject_layers, k_top=5):
     """
@@ -126,10 +145,12 @@ def visualize_eval_metrics(save_dir, dataset_name, n_folds, inject_layers, k_top
     agg_cm = np.zeros((n_classes, n_classes), dtype=np.int64)
 
     for i in range(n_folds):
+
         if layers_str: # consider ResiDual metrics
             save_file = os.path.join(save_dir, f'layers_{layers_str}_evalfold_{i}.npz')
-        else: # consider linear projection metrics
-            save_file = os.path.join(save_dir, f'linear_evalfold_{i}.npz')
+        else: # consider baseline or linear projection metrics
+            save_file = os.path.join(save_dir, f'evalfold_{i}.npz')
+            
         data = np.load(save_file)
 
         similarities = data["similarities"]
