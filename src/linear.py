@@ -117,8 +117,8 @@ def eval_linear_head(model, dataloader, device):
     
             all_preds.extend(preds.tolist())
             all_targets.extend(true_labels.tolist())
-            sims = F.softmax(logits, dim=-1).numpy() 
-            all_similarities.append(sims.cpu())
+            sims = F.softmax(logits, dim=-1).cpu().numpy() 
+            all_similarities.append(sims)
 
     full_similarities = torch.cat(all_similarities, dim=0).numpy()
     return all_preds, all_targets, full_similarities
