@@ -17,3 +17,5 @@ The code is organized as follows:
           - **linear.py**: implementantion of a linear classifier on top of the frozen HTSAT encoder for the comparative evaluation
           - **training.py**: code to train ResiDual and log metrics with [Weights&Bias](https://wandb.ai/site/)
           - **evaluation.py**: code to evaluate the performance of the different CLAP versions on audio classification and visualize the results
+
+3. the folder [pca_results](https://github.com/arianna011/Audio-ResiDual/tree/main/pca_results) contains the PCA decomposition of attention heads needed to understand their intrinsic dimensionality while [residual_pca](https://github.com/arianna011/Audio-ResiDual/tree/main/residual_pca) stores PCA basis and mean needed for the ResiDual spectral reweighting of attention output representantions.
